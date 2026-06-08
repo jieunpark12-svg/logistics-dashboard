@@ -2317,90 +2317,112 @@ async function openMoDetail(mo){
     </div>`).join('');
   document.getElementById('moDetailKpi').innerHTML=kpiHtml;
 
-  // 항목별 상세 테이블 — 배분/계산 탭의 모든 항목 표시
+  // 항목별 상세 테이블 — 구분별 전체 항목 표시
   const catCols2={'보관':'#2de8d0','입고':'#c8f135','출고':'#f43f8e','배송':'#fbbf24','기타':'#a855f7'};
   const METHOD_LABEL={'stock':'재고','order':'수주','outQty':'출고수','actual':'실적','atcost':'At Cost'};
+  const cats2=['보관','입고','출고','배송','기타'];
 
-  let tbl=`<div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead>
-        <tr style="border-bottom:2px solid var(--bd2);">
-          <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">카테고리</th>
-          <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">항목</th>
-          <th style="text-align:center;padding:8px 6px;color:var(--mu);font-weight:500;">방식</th>
-          <th style="text-align:right;padding:8px 10px;color:var(--cyan);font-weight:500;">MSSA (¥)</th>
-          <th style="text-align:right;padding:8px 10px;color:var(--vio);font-weight:500;">MFS (¥)</th>
-          <th style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:500;">합계 (¥)</th>
-          <th style="text-align:right;padding:8px 10px;color:var(--mu);font-weight:500;">청구서 (¥)</th>
-        </tr>
-      </thead>
-      <tbody>`;
+  let tbl='';
 
   if(rec.items && rec.items.length){
-    // 카테고리별로 그룹핑
-    const cats2=['보관','입고','출고','배송','기타'];
+    // ── 카테고리별 섹션으로 분리해서 전체 표시 ──
     cats2.forEach(c=>{
       const cItems=rec.items.filter(it=>it.cat===c);
       if(!cItems.length) return;
-      cItems.forEach((it,idx)=>{
+
+      // 카테고리 헤더
+      tbl+=`<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:3px solid ${catCols2[c]};">
+        <span style="font-size:12px;font-weight:700;color:var(--tx);">${c}</span>
+        <span style="font-size:11px;color:var(--mu);">${cItems.length}건</span>
+      </div>`;
+
+      tbl+=`<div style="overflow-x:auto;margin-bottom:4px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--bd2);">
+              <th style="text-align:left;padding:6px 10px;color:var(--mu);font-weight:500;min-width:180px;">항목</th>
+              <th style="text-align:center;padding:6px 8px;color:var(--mu);font-weight:500;white-space:nowrap;">방식</th>
+              <th style="text-align:right;padding:6px 10px;color:var(--cyan);font-weight:500;white-space:nowrap;">MSSA (¥)</th>
+              <th style="text-align:right;padding:6px 10px;color:var(--vio);font-weight:500;white-space:nowrap;">MFS (¥)</th>
+              <th style="text-align:right;padding:6px 10px;color:var(--lime);font-weight:500;white-space:nowrap;">합계 (¥)</th>
+              <th style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:500;white-space:nowrap;">청구서 (¥)</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      cItems.forEach(it=>{
         const tot=(it.mssaCalc||0)+(it.mfsCalc||0);
         const isSaesa=!!it.isSaesa;
         const totColor=tot<0?'var(--red)':tot>0?'var(--lime)':'var(--mu)';
-        const mCol=it.mssaCalc<0?'var(--red)':'var(--cyan)';
-        const fCol=it.mfsCalc<0?'var(--red)':'var(--vio)';
-        tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.03)'" onmouseout="this.style.background=''">
-          <td style="padding:8px 10px;">${idx===0?`<span style="display:inline-flex;align-items:center;gap:5px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]}"></span><span style="font-weight:600;color:var(--tx);font-size:11px;">${c}</span></span>`:'&nbsp;'}</td>
-          <td style="padding:8px 10px;color:${isSaesa?'var(--amb)':'var(--tx)'};font-weight:${isSaesa?600:400};max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${it.svc}">${it.svc}</td>
-          <td style="text-align:center;padding:8px 6px;"><span style="font-size:10px;color:var(--mu);background:var(--sf2);padding:2px 5px;border-radius:4px;">${METHOD_LABEL[it.method]||it.method||'—'}</span></td>
-          <td style="text-align:right;padding:8px 10px;color:${mCol};">${it.mssaCalc!==0?J(it.mssaCalc):'—'}</td>
-          <td style="text-align:right;padding:8px 10px;color:${fCol};">${it.mfsCalc!==0?J(it.mfsCalc):'—'}</td>
-          <td style="text-align:right;padding:8px 10px;font-weight:600;color:${totColor};">${tot!==0?J(tot):'—'}</td>
-          <td style="text-align:right;padding:8px 10px;color:${it.billedAmt<0?'var(--red)':'var(--mu)'}">${it.billedAmt!==0?J(it.billedAmt):'—'}</td>
-        </tr>`;
+        const mCol=(it.mssaCalc||0)<0?'var(--red)':'var(--cyan)';
+        const fCol=(it.mfsCalc||0)<0?'var(--red)':'var(--vio)';
+        tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background=''">
+            <td style="padding:8px 10px;color:${isSaesa?'var(--amb)':'var(--tx)'};font-weight:${isSaesa?600:400};word-break:keep-all;">${it.svc}</td>
+            <td style="text-align:center;padding:8px 8px;"><span style="font-size:10px;color:var(--mu);background:var(--sf2);padding:2px 6px;border-radius:4px;white-space:nowrap;">${METHOD_LABEL[it.method]||it.method||'—'}</span></td>
+            <td style="text-align:right;padding:8px 10px;color:${mCol};">${(it.mssaCalc||0)!==0?J(it.mssaCalc):'—'}</td>
+            <td style="text-align:right;padding:8px 10px;color:${fCol};">${(it.mfsCalc||0)!==0?J(it.mfsCalc):'—'}</td>
+            <td style="text-align:right;padding:8px 10px;font-weight:600;color:${totColor};">${tot!==0?J(tot):'—'}</td>
+            <td style="text-align:right;padding:8px 10px;color:${(it.billedAmt||0)<0?'var(--red)':'var(--mu)'};">${(it.billedAmt||0)!==0?J(it.billedAmt):'—'}</td>
+          </tr>`;
       });
+
+      // 카테고리 소계
+      const cM=cItems.reduce((s,it)=>s+(it.mssaCalc||0),0);
+      const cF=cItems.reduce((s,it)=>s+(it.mfsCalc||0),0);
+      tbl+=`<tr style="border-top:1px solid var(--bd2);background:rgba(255,255,255,.02);">
+            <td colspan="2" style="padding:7px 10px;font-size:11px;color:var(--mu);">소계</td>
+            <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--cyan);">${J(cM)}</td>
+            <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--vio);">${J(cF)}</td>
+            <td style="text-align:right;padding:7px 10px;font-weight:700;color:var(--lime);">${J(cM+cF)}</td>
+            <td style="text-align:right;padding:7px 10px;"></td>
+          </tr>`;
+
+      tbl+=`</tbody></table></div>`;
     });
+
   } else {
-    // items 없는 구버전 데이터 → 카테고리 합계로 폴백
-    const cats3=['보관','입고','출고','배송','기타'];
-    cats3.forEach(c=>{
+    // items 없는 구버전 → 카테고리 합계 폴백
+    tbl+=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="border-bottom:2px solid var(--bd2);">
+        <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">카테고리</th>
+        <th style="text-align:right;padding:8px 10px;color:var(--cyan);font-weight:500;">MSSA (¥)</th>
+        <th style="text-align:right;padding:8px 10px;color:var(--vio);font-weight:500;">MFS (¥)</th>
+        <th style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:500;">합계 (¥)</th>
+      </tr></thead><tbody>`;
+    cats2.forEach(c=>{
       const m=rec.catMssa?Math.round(rec.catMssa[c]||0):0;
       const f=rec.catMfs?Math.round(rec.catMfs[c]||0):0;
       if(m===0&&f===0) return;
       tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
-        <td style="padding:8px 10px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]};margin-right:6px;"></span><span style="color:var(--tx);font-weight:500;">${c}</span></td>
-        <td colspan="2" style="padding:8px 10px;color:var(--mu);font-size:11px;">카테고리 합계</td>
+        <td style="padding:8px 10px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]};margin-right:7px;"></span><span style="color:var(--tx);font-weight:500;">${c}</span></td>
         <td style="text-align:right;padding:8px 10px;color:var(--cyan);">${m?J(m):'—'}</td>
         <td style="text-align:right;padding:8px 10px;color:var(--vio);">${f?J(f):'—'}</td>
         <td style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:600;">${J(m+f)}</td>
-        <td style="text-align:right;padding:8px 10px;color:var(--mu);">—</td>
       </tr>`;
     });
+    tbl+=`</tbody></table></div>`;
   }
 
-  // 합계 행
-  tbl+=`<tr style="border-top:2px solid var(--bd2);background:rgba(255,255,255,.02);">
-    <td colspan="3" style="padding:10px 10px;font-weight:700;color:var(--tx);">합계</td>
-    <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--cyan);">${J(rec.mssa)}</td>
-    <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--vio);">${J(rec.mfs)}</td>
-    <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--lime);">${J(rec.total)}</td>
-    <td style="text-align:right;padding:10px 10px;color:var(--mu);">${rec.billedTotal?J(rec.billedTotal):'—'}</td>
-  </tr>`;
+  // 전체 합계 + 청구서 비교
+  tbl+=`<div style="margin-top:14px;padding:12px 14px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--bd2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--mu);">MSSA <span style="color:var(--cyan);font-weight:700;">${J(rec.mssa)}</span></span>
+        <span style="font-size:12px;color:var(--mu);">MFS <span style="color:var(--vio);font-weight:700;">${J(rec.mfs)}</span></span>
+        <span style="font-size:13px;color:var(--mu);">합계 <span style="color:var(--lime);font-weight:700;font-size:15px;">${J(rec.total)}</span></span>
+      </div>
+      ${rec.billedTotal!==undefined?(()=>{
+        const _d=rec.diff||0, _ok=Math.abs(_d)<1;
+        const _dc=_ok?'var(--grn)':_d<0?'var(--red)':'var(--amb)';
+        return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+          <span style="color:var(--mu);">청구서 ${J(rec.billedTotal)}</span>
+          <span style="color:${_dc};font-weight:600;">차이 ${J(_d)}</span>
+          ${_ok?'<span class="badge b-ok">일치</span>':'<span class="badge b-wrn">차이</span>'}
+        </div>`;
+      })():''}
+    </div>
+  </div>`;
 
-  // 차이/검증 행
-  if(rec.billedTotal!==undefined){
-    const _diff=rec.diff||0;
-    const _ok=Math.abs(_diff)<1;
-    const _dCol=_ok?'var(--grn)':_diff<0?'var(--red)':'var(--amb)';
-    tbl+=`<tr style="border-top:1px solid var(--bd2);">
-      <td colspan="5" style="padding:9px 10px;color:var(--mu);font-size:11px;">청구서 대비 차이</td>
-      <td colspan="2" style="text-align:right;padding:9px 10px;">
-        <span style="color:${_dCol};font-weight:600;margin-right:6px;">${J(_diff)}</span>
-        ${_ok?'<span class="badge b-ok">일치</span>':'<span class="badge b-wrn">차이</span>'}
-      </td>
-    </tr>`;
-  }
-
-  tbl+=`</tbody></table></div>`;
   document.getElementById('moDetailTable').innerHTML=tbl;
 
   // 모달 표시
