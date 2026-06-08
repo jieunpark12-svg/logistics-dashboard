@@ -727,25 +727,23 @@ input[type=number]:focus,input[type=text]:focus{border-color:var(--lime);}
       </div>
 
     </div><!-- /dbScreen -->
-
-    <!-- ══ 월별 상세 모달 ══ -->
-    <div id="moDetailOverlay" onclick="closeMoDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;backdrop-filter:blur(3px);"></div>
-    <div id="moDetailModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(780px,95vw);max-height:85vh;overflow-y:auto;background:var(--sf1);border:1px solid var(--bd2);border-radius:14px;z-index:3001;box-shadow:0 24px 60px rgba(0,0,0,.6);">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid var(--bd2);position:sticky;top:0;background:var(--sf1);z-index:1;">
-        <div>
-          <div id="moDetailTitle" style="font-family:'Syne','Segoe UI',sans-serif;font-size:17px;font-weight:700;"></div>
-          <div id="moDetailSub" style="font-size:11px;color:var(--mu);margin-top:2px;"></div>
-        </div>
-        <button onclick="closeMoDetail()" style="background:none;border:none;color:var(--mu);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;">×</button>
-      </div>
-      <div style="padding:18px 22px;">
-        <!-- KPI 요약 -->
-        <div id="moDetailKpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;"></div>
-        <!-- 항목별 상세 테이블 -->
-        <div id="moDetailTable"></div>
-      </div>
-    </div>
   </div><!-- /content -->
+
+  <!-- ══ 월별 상세 모달 ══ -->
+  <div id="moDetailOverlay" onclick="closeMoDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;backdrop-filter:blur(3px);"></div>
+  <div id="moDetailModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(820px,96vw);max-height:88vh;overflow-y:auto;background:var(--sf1);border:1px solid var(--bd2);border-radius:14px;z-index:3001;box-shadow:0 24px 60px rgba(0,0,0,.7);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid var(--bd2);position:sticky;top:0;background:var(--sf1);z-index:1;">
+      <div>
+        <div id="moDetailTitle" style="font-family:'Syne','Segoe UI',sans-serif;font-size:17px;font-weight:700;"></div>
+        <div id="moDetailSub" style="font-size:11px;color:var(--mu);margin-top:2px;"></div>
+      </div>
+      <button onclick="closeMoDetail()" style="background:none;border:none;color:var(--mu);font-size:22px;cursor:pointer;padding:2px 8px;line-height:1;">×</button>
+    </div>
+    <div style="padding:18px 22px;">
+      <div id="moDetailKpi" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;"></div>
+      <div id="moDetailTable"></div>
+    </div>
+  </div>
 </div><!-- /main -->
 </div><!-- /app -->
 
@@ -1196,22 +1194,20 @@ function parseWb(wb,fname){
     let st='ok',iss=[];
     if(cr&&rate&&rate>cr*1.001){st='error';iss.push({t:'error',m:`단가 초과: 청구 ¥${rate.toLocaleString()} vs 계약 ¥${cr.toLocaleString()} (초과 ¥${(rate-cr).toLocaleString()})`});}
     if(note&&(note.includes('확인필요')||note.includes('재확인'))){if(st==='ok')st='warn';iss.push({t:'warn',m:`비고: ${note.slice(0,80)}`});}
-    // 相殺/상계: 청구서 음수 amt를 화주사별 mssa/mfs로 분배
-    const isSaesaRow=svc==='相殺'||svc.includes('相殺')||svc.includes('상계');
-    let finalAmt=amt, finalMssa=mssa, finalMfs=mfs;
-    if(isSaesaRow && amt<0){
-      // 청구서에 MSSA/MFS 열이 있으면 그 값, 없으면 전액 MSSA
-      if(mssa!==0||mfs!==0){ finalMssa=mssa; finalMfs=mfs; }
-      else { finalMssa=amt; finalMfs=0; }
-      // amt는 원본 보존 (billedAmt 계산에 사용)
-    } else if(amt<0 && !isSaesaRow){
-      if(st==='ok') st='warn';
-      iss.push({t:'warn', m:`음수(상계/공제): ${J(amt)}`});
+    // 相殺/상계: 음수 amt를 화주사별 mssa/mfs로 분배
+    const _isSaesaRow=svc==='相殺'||svc.includes('相殺')||svc.includes('상계');
+    let _amt=amt, _mssa=mssa, _mfs=mfs;
+    if(_isSaesaRow && amt<0){
+      if(mssa!==0||mfs!==0){_mssa=mssa;_mfs=mfs;}
+      else{_mssa=amt;_mfs=0;}
+    } else if(amt<0 && !_isSaesaRow){
+      if(st==='ok')st='warn';
+      iss.push({t:'warn',m:`음수(상계/공제): ${J(amt)}`});
     }
     items.push({mo,cat,svc,unit:String(r[cm.unit]||''),rate,cr,contractRate:cr||rate||0,qty,
-      amt:isSaesaRow ? finalAmt : amt,
-      mssa:isSaesaRow ? finalMssa : mssa,
-      mfs:isSaesaRow ? finalMfs : mfs,
+      amt:_isSaesaRow?_amt:amt,
+      mssa:_isSaesaRow?_mssa:mssa,
+      mfs:_isSaesaRow?_mfs:mfs,
       note,st,iss});
   }
   return items;
@@ -1811,7 +1807,7 @@ function computeAll(){
     const aqKey=isSaesa?'相殺':it.svc;
     const aq=actualQty[aqKey]||{mssaQty:0,mfsQty:0,mssaAmt:0,mfsAmt:0};
     let mssaAmt=0,mfsAmt=0;
-    // 相殺: 파싱 시 저장된 음수 그대로 사용 / 일반: 절대값
+    // 相殺: 파싱 시 저장된 음수 그대로 / 일반: 절대값
     const billedAmt=isSaesa ? it.amt : Math.abs(it.amt);
 
     if(method==='stock'){
@@ -1835,14 +1831,11 @@ function computeAll(){
     } else { // actual / atcost
       const cRate=it.contractRate||it.cr||it.rate||0;
       if(isSaesa){
-        // 나누기탭 입력이 있으면 우선, 없으면 청구서 파싱값(it.mssa/mfs) 사용
-        const hasManualInput=(aq.mssaAmt!==0||aq.mfsAmt!==0);
-        if(hasManualInput){
-          mssaAmt=-(Math.abs(aq.mssaAmt));
-          mfsAmt=-(Math.abs(aq.mfsAmt));
+        // 나누기탭 입력 우선, 없으면 청구서 파싱값(it.mssa/mfs) 사용
+        if(aq.mssaAmt!==0||aq.mfsAmt!==0){
+          mssaAmt=-(Math.abs(aq.mssaAmt)); mfsAmt=-(Math.abs(aq.mfsAmt));
         } else {
-          mssaAmt=it.mssa||0;  // 청구서에서 파싱된 화주사별 음수값
-          mfsAmt=it.mfs||0;
+          mssaAmt=it.mssa||0; mfsAmt=it.mfs||0;
         }
       } else if(method==='atcost'){
         // at cost: 금액 직접 입력
@@ -1954,14 +1947,15 @@ function renderCalc(){
   document.getElementById('calcBody').innerHTML=rows.map(it=>{
     // 相殺: 나누기탭 입력 우선, 없으면 청구서 파싱값(it.mssa/mfs) 사용
     if(it.isSaesa){
-      const _aq=actualQty['相殺']||{};
-      const _hasManual=(_aq.mssaAmt!==undefined&&_aq.mssaAmt!==0)||(_aq.mfsAmt!==undefined&&_aq.mfsAmt!==0);
-      if(_hasManual){
-        it.mssaCalc=-(Math.abs(_aq.mssaAmt||0));
-        it.mfsCalc=-(Math.abs(_aq.mfsAmt||0));
+      const _aqS=actualQty['相殺']||{};
+      if(_aqS.mssaAmt||_aqS.mfsAmt){
+        it.mssaCalc=-(Math.abs(_aqS.mssaAmt||0));
+        it.mfsCalc=-(Math.abs(_aqS.mfsAmt||0));
+        // 나누기탭 입력 합계를 billedAmt로도 반영 (검증 diff 정확히)
+        it.billedAmt=it.mssaCalc+it.mfsCalc;
       } else if(it.mssa!==0||it.mfs!==0){
-        it.mssaCalc=it.mssa;  // 청구서 파싱 화주사별 음수값
-        it.mfsCalc=it.mfs;
+        it.mssaCalc=it.mssa; it.mfsCalc=it.mfs;
+        it.billedAmt=it.mssaCalc+it.mfsCalc;
       }
     }
     const tot=it.mssaCalc+it.mfsCalc;
@@ -1989,32 +1983,24 @@ function renderCalc(){
     // 검증 배지
     let badge, diffDisp;
     if(isSaesa){
-      // 相殺: |산출합계| vs |청구서금액| 절대값 비교
-      const _cAbs=Math.abs(tot);
-      const _bAbs=Math.abs(it.billedAmt);
-      if(_cAbs===0){
-        badge='<span class="badge b-gray">미입력</span>';
-        diffDisp='—';
-      } else if(_bAbs===0){
-        // 청구서 금액 없이 나누기탭만 입력된 경우
-        badge='<span class="badge" style="background:rgba(251,191,36,.15);color:var(--amb)">상계처리</span>';
-        diffDisp='—';
-      } else if(Math.abs(_cAbs-_bAbs)<1){
+      const _ca=Math.abs(tot), _ba=Math.abs(it.billedAmt);
+      if(_ca===0){
+        badge='<span class="badge b-gray">미입력</span>'; diffDisp='—';
+      } else if(_ba===0){
+        badge='<span class="badge" style="background:rgba(251,191,36,.15);color:var(--amb)">상계처리</span>'; diffDisp='—';
+      } else if(Math.abs(_ca-_ba)<1){
         badge='<span class="badge b-ok">일치</span>';
         diffDisp='<span style="color:var(--mu)">¥0</span>';
       } else {
-        const _sd=_cAbs-_bAbs;
         badge='<span class="badge b-wrn">차이</span>';
-        diffDisp=`<span style="color:var(--amb)">${J(_sd)}</span>`;
+        diffDisp=`<span style="color:var(--amb)">${J(_ca-_ba)}</span>`;
       }
     } else {
       const totIsZero=(tot===0);
       if(totIsZero){
-        badge='<span class="badge b-gray">미입력</span>';
-        diffDisp='—';
+        badge='<span class="badge b-gray">미입력</span>'; diffDisp='—';
       } else if(it.billedAmt===0){
-        badge='<span class="badge" style="background:rgba(56,189,248,.15);color:#38bdf8">산출완료</span>';
-        diffDisp='—';
+        badge='<span class="badge" style="background:rgba(56,189,248,.15);color:#38bdf8">산출완료</span>'; diffDisp='—';
       } else if(Math.abs(diff)<1){
         badge='<span class="badge b-ok">일치</span>';
         diffDisp=`<span style="color:var(--mu)">¥0</span>`;
@@ -2039,17 +2025,30 @@ function renderCalc(){
       <td style="text-align:right">${mssaDisp}</td>
       <td style="text-align:right">${mfsDisp}</td>
       <td style="text-align:right">${totDisp}</td>
-      <td style="text-align:right">${
-        isSaesa && it.billedAmt!==0
-          ? `<span style="color:var(--red);font-weight:500">${J(it.billedAmt)}</span>`
-            + (it.mssa!==0||it.mfs!==0
-              ? `<br><small style="color:var(--mu);font-size:10px">`
-                + (it.mssa!==0?`MSSA: ${J(it.mssa)} `:'')
-                + (it.mfs!==0?`MFS: ${J(it.mfs)}`:'')
-                + `</small>`
-              : '')
-          : it.billedAmt!==0 ? J(it.billedAmt) : '—'
-      }</td>
+      <td style="text-align:right">${(()=>{
+        if(!isSaesa){
+          return it.billedAmt!==0 ? J(it.billedAmt) : '—';
+        }
+        // ── 相殺: 청구서금액 열에 입력값 기반 음수 자동 표시 ──
+        const _aqS=actualQty['相殺']||{};
+        const _inputM=_aqS.mssaAmt ? -(Math.abs(_aqS.mssaAmt)) : 0;
+        const _inputF=_aqS.mfsAmt  ? -(Math.abs(_aqS.mfsAmt))  : 0;
+        // 표시할 금액: 나누기탭 입력값 합계 우선, 없으면 청구서 파싱값(it.amt)
+        const _showTotal=(_inputM!==0||_inputF!==0) ? (_inputM+_inputF) : (it.amt||0);
+        const _showM=(_inputM!==0||_inputF!==0) ? _inputM : (it.mssa||0);
+        const _showF=(_inputM!==0||_inputF!==0) ? _inputF : (it.mfs||0);
+        if(_showTotal===0) return '—';
+        // 합계 음수 표시
+        let _html=`<span style="color:var(--red);font-weight:500">${J(_showTotal)}</span>`;
+        // 화주사별 소표기
+        if(_showM!==0||_showF!==0){
+          _html+=`<br><small style="color:var(--mu);font-size:10px">`;
+          if(_showM!==0) _html+=`MSSA: <span style="color:var(--red)">${J(_showM)}</span> `;
+          if(_showF!==0) _html+=`MFS: <span style="color:var(--red)">${J(_showF)}</span>`;
+          _html+=`</small>`;
+        }
+        return _html;
+      })()}</td>
       <td style="text-align:right">${diffDisp}</td>
       <td>${badge}</td>
     </tr>`;
@@ -2175,40 +2174,26 @@ async function confirmMonth(){
   });
   const billedTotal=Math.round(rows.reduce((s,r)=>s+r.billedAmt,0));
   const diff=Math.round(totalM+totalF)-billedTotal;
-  // 나누기 탭 입력값 스냅샷 (수정 시 복구용)
-  const inputSnapshot={
-    // 비율 입력 슬라이더 값
-    ratios:{
-      stockMssa:parseFloat(document.getElementById('stockMssa').value)||0,
-      stockMfs:parseFloat(document.getElementById('stockMfs').value)||0,
-      orderB2cMssa:parseFloat(document.getElementById('orderB2cMssa').value)||0,
-      orderB2cMfs:parseFloat(document.getElementById('orderB2cMfs').value)||0,
-      orderB2bMssa:parseFloat(document.getElementById('orderB2bMssa').value)||0,
-      orderB2bMfs:parseFloat(document.getElementById('orderB2bMfs').value)||0,
-      outQtyMssaB2C:parseFloat(document.getElementById('outQtyMssaB2C').value)||0,
-      outQtyMssaB2B:parseFloat(document.getElementById('outQtyMssaB2B').value)||0,
-      outQtyMfs:parseFloat(document.getElementById('outQtyMfs').value)||0,
-      returnMssa:parseFloat(document.getElementById('returnMssa').value)||0,
-      returnMfs:parseFloat(document.getElementById('returnMfs').value)||0,
-    },
-    // Actual/Atcost/相殺 수량·금액 입력값
-    actualQty:JSON.parse(JSON.stringify(actualQty)),
-    // 수기 항목
-    manualItems:JSON.parse(JSON.stringify(manualItems)),
-  };
-  // 항목별 상세 저장 (모달 표시용)
+  // 항목별 상세 저장 — mssaCalc/mfsCalc가 확정 시점의 정확한 산출값
   const savedItems=rows.map(r=>({
-    cat:r.cat, svc:r.svc, unit:r.unit||'',
-    mssaCalc:Math.round(r.mssaCalc), mfsCalc:Math.round(r.mfsCalc),
-    billedAmt:r.billedAmt||0, method:r.method||'', isSaesa:!!r.isSaesa,
+    cat:r.cat, svc:r.svc, unit:r.unit||'', method:r.method||'',
+    mssaCalc:Math.round(r.mssaCalc||0),
+    mfsCalc:Math.round(r.mfsCalc||0),
+    billedAmt:Math.round(r.billedAmt||0),
+    isSaesa:!!r.isSaesa,
   }));
+  // actualQty 스냅샷 저장 (모달 표시 시 복구용)
+  const savedActualQty=JSON.parse(JSON.stringify(actualQty));
+  // 비율 스냅샷 저장
+  const savedRatios=getRatios();
   const record={
     mo,
     confirmedAt:new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
     mssa:Math.round(totalM), mfs:Math.round(totalF), total:Math.round(totalM+totalF),
     billedTotal, diff, cats:catTotal, catMssa, catMfs, itemCount:rows.length,
-    items:savedItems,   // 항목별 상세 (모달 표시용)
-    inputSnapshot,
+    items:savedItems,
+    actualQtySnap:savedActualQty,
+    ratiosSnap:savedRatios,
   };
   const data=await loadSummaryData();
   data[mo]=record;
@@ -2250,44 +2235,6 @@ async function editMonth(){
   if(!mo) return;
   if(!confirm(`${mo} 확정을 취소하고 수정하시겠습니까?`)) return;
   const data=await loadSummaryData();
-  const record=data[mo];
-
-  // ── 입력값 복구 ──
-  if(record && record.inputSnapshot){
-    const snap=record.inputSnapshot;
-
-    // 비율 슬라이더 복구
-    if(snap.ratios){
-      const fieldMap={
-        stockMssa:'stockMssa', stockMfs:'stockMfs',
-        orderB2cMssa:'orderB2cMssa', orderB2cMfs:'orderB2cMfs',
-        orderB2bMssa:'orderB2bMssa', orderB2bMfs:'orderB2bMfs',
-        outQtyMssaB2C:'outQtyMssaB2C', outQtyMssaB2B:'outQtyMssaB2B',
-        outQtyMfs:'outQtyMfs',
-        returnMssa:'returnMssa', returnMfs:'returnMfs',
-      };
-      Object.entries(fieldMap).forEach(([key,id])=>{
-        const el=document.getElementById(id);
-        if(el && snap.ratios[key]!==undefined) el.value=snap.ratios[key];
-      });
-    }
-
-    // actualQty 복구 (Actual 수량, Atcost 금액, 相殺 금액)
-    if(snap.actualQty){
-      actualQty=JSON.parse(JSON.stringify(snap.actualQty));
-    }
-
-    // 수기 항목 복구
-    if(snap.manualItems){
-      manualItems=JSON.parse(JSON.stringify(snap.manualItems));
-      // _manualId를 기존 항목 중 최대 id+1로 설정
-      _manualId=manualItems.reduce((mx,m)=>Math.max(mx,m.id||0),0)+1;
-    }
-
-    // UI 전체 갱신
-    onAnyInput();
-  }
-
   delete data[mo];
   await saveSummaryData(data);
   refreshMonthDropdown();
@@ -2301,131 +2248,180 @@ async function openMoDetail(mo){
   const rec=data[mo];
   if(!rec) return;
 
-  // 제목
   document.getElementById('moDetailTitle').textContent=`${mo} 청구금액 상세`;
   document.getElementById('moDetailSub').textContent=`확정일시: ${rec.confirmedAt||'—'} · ${rec.itemCount||0}건`;
 
   // KPI
-  const kpiHtml=[
+  document.getElementById('moDetailKpi').innerHTML=[
     {lbl:'합계',val:J(rec.total),col:'var(--lime)'},
     {lbl:'MSSA',val:J(rec.mssa),col:'var(--cyan)'},
     {lbl:'MFS',val:J(rec.mfs),col:'var(--vio)'},
-  ].map(k=>`
-    <div style="background:var(--sf2);border-radius:10px;padding:12px 14px;border:1px solid var(--bd2);">
-      <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">${k.lbl}</div>
-      <div style="font-size:16px;font-weight:700;color:${k.col};">${k.val}</div>
-    </div>`).join('');
-  document.getElementById('moDetailKpi').innerHTML=kpiHtml;
+  ].map(k=>`<div style="background:var(--sf2);border-radius:10px;padding:12px 14px;border:1px solid var(--bd2);">
+    <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">${k.lbl}</div>
+    <div style="font-size:16px;font-weight:700;color:${k.col};">${k.val}</div>
+  </div>`).join('');
 
-  // 항목별 상세 테이블 — 구분별 전체 항목 표시
-  const catCols2={'보관':'#2de8d0','입고':'#c8f135','출고':'#f43f8e','배송':'#fbbf24','기타':'#a855f7'};
+  const catCols={'보관':'#2de8d0','입고':'#c8f135','출고':'#f43f8e','배송':'#fbbf24','기타':'#a855f7'};
   const METHOD_LABEL={'stock':'재고','order':'수주','outQty':'출고수','actual':'실적','atcost':'At Cost'};
-  const cats2=['보관','입고','출고','배송','기타'];
+  const cats=['보관','입고','출고','배송','기타'];
+
+  // ── 항목 데이터 소스 결정 ──
+  // 1순위: rec.items (이번 수정 후 확정 → mssaCalc/mfsCalc 정확히 저장됨)
+  // 2순위: actualQtySnap + ALL[mo] 으로 직접 재계산 (구버전 데이터 구제)
+  // 3순위: 카테고리 합계 폴백
+  let itemSrc=null;
+
+  if(rec.items && rec.items.length){
+    itemSrc=rec.items;
+  } else {
+    // actualQtySnap 또는 현재 actualQty로 해당 월 항목 재계산
+    const moData=ALL.filter(i=>i.mo===mo);
+    if(moData.length>0){
+      const snap=rec.actualQtySnap||actualQty;  // 스냅샷 없으면 현재값 사용
+      const rSnap=rec.ratiosSnap||getRatios();
+      const R2=v=>Math.round(v);
+      const seen2=new Set();
+      const calcRows=[];
+      moData.forEach(it=>{
+        if(seen2.has(it.svc)) return; seen2.add(it.svc);
+        const method=findSettle(it.svc)||'actual';
+        const isSaesa=it.svc==='相殺'||it.svc.includes('相殺')||it.svc.includes('상계');
+        const aqKey=isSaesa?'相殺':it.svc;
+        const aq=snap[aqKey]||{mssaQty:0,mfsQty:0,mssaAmt:0,mfsAmt:0};
+        // 相殺: 파싱 시 저장된 음수 그대로 / 일반: 절대값
+    const billedAmt=isSaesa ? it.amt : Math.abs(it.amt);
+        let mssaAmt=0,mfsAmt=0;
+        if(method==='stock'){mssaAmt=R2(billedAmt*rSnap.stock.m);mfsAmt=R2(billedAmt*rSnap.stock.f);}
+        else if(method==='orderB2c'){mssaAmt=R2(billedAmt*rSnap.orderB2c.m);mfsAmt=R2(billedAmt*rSnap.orderB2c.f);}
+        else if(method==='orderB2b'){mssaAmt=R2(billedAmt*rSnap.orderB2b.m);mfsAmt=R2(billedAmt*rSnap.orderB2b.f);}
+        else if(method==='orderB2cB2b'){mssaAmt=R2(billedAmt*rSnap.orderB2cB2b.m);mfsAmt=R2(billedAmt*rSnap.orderB2cB2b.f);}
+        else if(method==='outQty'){
+          const PICK_RATE=typeof CONTRACT!=='undefined'?(CONTRACT['피킹작업_Pcs']?.rate||18):18;
+          mssaAmt=R2(rSnap.outQty.m*PICK_RATE);mfsAmt=R2(rSnap.outQty.f*PICK_RATE);
+        }
+        else if(method==='return'){mssaAmt=R2(billedAmt*rSnap.return.m);mfsAmt=R2(billedAmt*rSnap.return.f);}
+        else{
+          // actual / atcost
+          if(isSaesa){
+            if(aq.mssaAmt!==0||aq.mfsAmt!==0){
+              mssaAmt=-(Math.abs(aq.mssaAmt)); mfsAmt=-(Math.abs(aq.mfsAmt));
+            } else { mssaAmt=billedAmt; mfsAmt=0; } // 입력없으면 전액 MSSA
+          } else if(method==='atcost'){mssaAmt=aq.mssaAmt||0;mfsAmt=aq.mfsAmt||0;}
+          else{const cr=it.contractRate||it.cr||it.rate||0;mssaAmt=R2(cr*aq.mssaQty);mfsAmt=R2(cr*aq.mfsQty);}
+        }
+        calcRows.push({cat:it.cat,svc:it.svc,unit:it.unit||'',method,
+          mssaCalc:mssaAmt,mfsCalc:mfsAmt,billedAmt,isSaesa:!!isSaesa});
+      });
+      if(calcRows.length) itemSrc=calcRows;
+    }
+  }
 
   let tbl='';
 
-  if(rec.items && rec.items.length){
-    // ── 카테고리별 섹션으로 분리해서 전체 표시 ──
-    cats2.forEach(c=>{
-      const cItems=rec.items.filter(it=>it.cat===c);
+  if(itemSrc && itemSrc.length){
+    // ── 카테고리별 섹션으로 전체 항목 표시 ──
+    cats.forEach(c=>{
+      const cItems=itemSrc.filter(it=>it.cat===c);
       if(!cItems.length) return;
 
-      // 카테고리 헤더
-      tbl+=`<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:3px solid ${catCols2[c]};">
+      tbl+=`<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;padding:6px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:3px solid ${catCols[c]};">
         <span style="font-size:12px;font-weight:700;color:var(--tx);">${c}</span>
         <span style="font-size:11px;color:var(--mu);">${cItems.length}건</span>
-      </div>`;
-
-      tbl+=`<div style="overflow-x:auto;margin-bottom:4px;">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead>
-            <tr style="border-bottom:1px solid var(--bd2);">
-              <th style="text-align:left;padding:6px 10px;color:var(--mu);font-weight:500;min-width:180px;">항목</th>
-              <th style="text-align:center;padding:6px 8px;color:var(--mu);font-weight:500;white-space:nowrap;">방식</th>
-              <th style="text-align:right;padding:6px 10px;color:var(--cyan);font-weight:500;white-space:nowrap;">MSSA (¥)</th>
-              <th style="text-align:right;padding:6px 10px;color:var(--vio);font-weight:500;white-space:nowrap;">MFS (¥)</th>
-              <th style="text-align:right;padding:6px 10px;color:var(--lime);font-weight:500;white-space:nowrap;">합계 (¥)</th>
-              <th style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:500;white-space:nowrap;">청구서 (¥)</th>
-            </tr>
-          </thead>
-          <tbody>`;
+      </div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="border-bottom:1px solid var(--bd2);">
+          <th style="text-align:left;padding:6px 10px;color:var(--mu);font-weight:500;min-width:180px;">항목</th>
+          <th style="text-align:center;padding:6px 8px;color:var(--mu);font-weight:500;white-space:nowrap;">방식</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--cyan);font-weight:500;white-space:nowrap;">MSSA (¥)</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--vio);font-weight:500;white-space:nowrap;">MFS (¥)</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--lime);font-weight:500;white-space:nowrap;">합계 (¥)</th>
+          <th style="text-align:right;padding:6px 10px;color:var(--mu);font-weight:500;white-space:nowrap;">청구서 (¥)</th>
+        </tr></thead>
+        <tbody>`;
 
       cItems.forEach(it=>{
-        const tot=(it.mssaCalc||0)+(it.mfsCalc||0);
         const isSaesa=!!it.isSaesa;
-        const totColor=tot<0?'var(--red)':tot>0?'var(--lime)':'var(--mu)';
-        const mCol=(it.mssaCalc||0)<0?'var(--red)':'var(--cyan)';
-        const fCol=(it.mfsCalc||0)<0?'var(--red)':'var(--vio)';
+        // 相殺: mssaCalc/mfsCalc가 0이면 billedAmt를 mssa에 표시 (청구서 파싱값)
+        let dispMssa=it.mssaCalc||0;
+        let dispMfs=it.mfsCalc||0;
+        if(isSaesa && dispMssa===0 && dispMfs===0 && (it.billedAmt||0)!==0){
+          dispMssa=it.billedAmt; // 전액 MSSA로 표시 (화주사 구분 없는 경우)
+          dispMfs=0;
+        }
+        const tot=dispMssa+dispMfs;
+        const totCol=tot<0?'var(--red)':tot>0?'var(--lime)':'var(--mu)';
+        const mCol=dispMssa<0?'var(--red)':'var(--cyan)';
+        const fCol=dispMfs<0?'var(--red)':'var(--vio)';
+        const bCol=(it.billedAmt||0)<0?'var(--red)':'var(--mu)';
+        // 相殺 청구서 열: billedAmt와 MSSA/MFS 소표기
+        const billedDisp=isSaesa&&(it.billedAmt||0)!==0
+          ? `<span style="color:var(--red);font-weight:500">${J(it.billedAmt)}</span>`
+          : (it.billedAmt||0)!==0?J(it.billedAmt):'—';
         tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background=''">
-            <td style="padding:8px 10px;color:${isSaesa?'var(--amb)':'var(--tx)'};font-weight:${isSaesa?600:400};word-break:keep-all;">${it.svc}</td>
-            <td style="text-align:center;padding:8px 8px;"><span style="font-size:10px;color:var(--mu);background:var(--sf2);padding:2px 6px;border-radius:4px;white-space:nowrap;">${METHOD_LABEL[it.method]||it.method||'—'}</span></td>
-            <td style="text-align:right;padding:8px 10px;color:${mCol};">${(it.mssaCalc||0)!==0?J(it.mssaCalc):'—'}</td>
-            <td style="text-align:right;padding:8px 10px;color:${fCol};">${(it.mfsCalc||0)!==0?J(it.mfsCalc):'—'}</td>
-            <td style="text-align:right;padding:8px 10px;font-weight:600;color:${totColor};">${tot!==0?J(tot):'—'}</td>
-            <td style="text-align:right;padding:8px 10px;color:${(it.billedAmt||0)<0?'var(--red)':'var(--mu)'};">${(it.billedAmt||0)!==0?J(it.billedAmt):'—'}</td>
-          </tr>`;
+          <td style="padding:8px 10px;color:${isSaesa?'var(--amb)':'var(--tx)'};font-weight:${isSaesa?600:400};">${it.svc}</td>
+          <td style="text-align:center;padding:8px 8px;"><span style="font-size:10px;color:var(--mu);background:var(--sf2);padding:2px 6px;border-radius:4px;white-space:nowrap;">${METHOD_LABEL[it.method]||it.method||'—'}</span></td>
+          <td style="text-align:right;padding:8px 10px;color:${mCol};">${dispMssa!==0?J(dispMssa):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;color:${fCol};">${dispMfs!==0?J(dispMfs):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;font-weight:600;color:${totCol};">${tot!==0?J(tot):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;color:${bCol};">${billedDisp}</td>
+        </tr>`;
       });
 
       // 카테고리 소계
       const cM=cItems.reduce((s,it)=>s+(it.mssaCalc||0),0);
       const cF=cItems.reduce((s,it)=>s+(it.mfsCalc||0),0);
-      tbl+=`<tr style="border-top:1px solid var(--bd2);background:rgba(255,255,255,.02);">
-            <td colspan="2" style="padding:7px 10px;font-size:11px;color:var(--mu);">소계</td>
-            <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--cyan);">${J(cM)}</td>
-            <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--vio);">${J(cF)}</td>
-            <td style="text-align:right;padding:7px 10px;font-weight:700;color:var(--lime);">${J(cM+cF)}</td>
-            <td style="text-align:right;padding:7px 10px;"></td>
-          </tr>`;
-
-      tbl+=`</tbody></table></div>`;
+      tbl+=`<tr style="border-top:1px solid var(--bd2);background:rgba(255,255,255,.025);">
+          <td colspan="2" style="padding:7px 10px;font-size:11px;color:var(--mu);">소계</td>
+          <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--cyan);">${J(cM)}</td>
+          <td style="text-align:right;padding:7px 10px;font-weight:600;color:var(--vio);">${J(cF)}</td>
+          <td style="text-align:right;padding:7px 10px;font-weight:700;color:var(--lime);">${J(cM+cF)}</td>
+          <td></td>
+        </tr>
+        </tbody></table></div>`;
     });
 
   } else {
-    // items 없는 구버전 → 카테고리 합계 폴백
-    tbl+=`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+    // 폴백: 카테고리 합계만 표시
+    tbl+=`<div style="color:var(--mu);font-size:12px;margin-bottom:10px;">※ 항목별 상세는 이번 수정 후 재확정한 데이터부터 표시됩니다.</div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead><tr style="border-bottom:2px solid var(--bd2);">
         <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">카테고리</th>
         <th style="text-align:right;padding:8px 10px;color:var(--cyan);font-weight:500;">MSSA (¥)</th>
         <th style="text-align:right;padding:8px 10px;color:var(--vio);font-weight:500;">MFS (¥)</th>
         <th style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:500;">합계 (¥)</th>
       </tr></thead><tbody>`;
-    cats2.forEach(c=>{
+    cats.forEach(c=>{
       const m=rec.catMssa?Math.round(rec.catMssa[c]||0):0;
       const f=rec.catMfs?Math.round(rec.catMfs[c]||0):0;
-      if(m===0&&f===0) return;
+      if(!m&&!f) return;
       tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
-        <td style="padding:8px 10px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]};margin-right:7px;"></span><span style="color:var(--tx);font-weight:500;">${c}</span></td>
-        <td style="text-align:right;padding:8px 10px;color:var(--cyan);">${m?J(m):'—'}</td>
-        <td style="text-align:right;padding:8px 10px;color:var(--vio);">${f?J(f):'—'}</td>
-        <td style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:600;">${J(m+f)}</td>
+        <td style="padding:9px 10px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols[c]};margin-right:7px;"></span><span style="color:var(--tx);font-weight:500;">${c}</span></td>
+        <td style="text-align:right;padding:9px 10px;color:var(--cyan);">${m?J(m):'—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--vio);">${f?J(f):'—'}</td>
+        <td style="text-align:right;padding:9px 10px;color:var(--lime);font-weight:600;">${J(m+f)}</td>
       </tr>`;
     });
     tbl+=`</tbody></table></div>`;
   }
 
-  // 전체 합계 + 청구서 비교
-  tbl+=`<div style="margin-top:14px;padding:12px 14px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--bd2);">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        <span style="font-size:12px;color:var(--mu);">MSSA <span style="color:var(--cyan);font-weight:700;">${J(rec.mssa)}</span></span>
-        <span style="font-size:12px;color:var(--mu);">MFS <span style="color:var(--vio);font-weight:700;">${J(rec.mfs)}</span></span>
-        <span style="font-size:13px;color:var(--mu);">합계 <span style="color:var(--lime);font-weight:700;font-size:15px;">${J(rec.total)}</span></span>
-      </div>
-      ${rec.billedTotal!==undefined?(()=>{
-        const _d=rec.diff||0, _ok=Math.abs(_d)<1;
-        const _dc=_ok?'var(--grn)':_d<0?'var(--red)':'var(--amb)';
-        return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-          <span style="color:var(--mu);">청구서 ${J(rec.billedTotal)}</span>
-          <span style="color:${_dc};font-weight:600;">차이 ${J(_d)}</span>
-          ${_ok?'<span class="badge b-ok">일치</span>':'<span class="badge b-wrn">차이</span>'}
-        </div>`;
-      })():''}
+  // 전체 합계 + 청구서 비교 바
+  const _d=rec.diff||0, _ok=Math.abs(_d)<1;
+  const _dc=_ok?'var(--grn)':_d<0?'var(--red)':'var(--amb)';
+  tbl+=`<div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--bd2);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;">
+      <span style="color:var(--mu);">MSSA <span style="color:var(--cyan);font-weight:700;">${J(rec.mssa)}</span></span>
+      <span style="color:var(--mu);">MFS <span style="color:var(--vio);font-weight:700;">${J(rec.mfs)}</span></span>
+      <span style="color:var(--mu);">합계 <span style="color:var(--lime);font-weight:700;font-size:15px;">${J(rec.total)}</span></span>
     </div>
+    ${rec.billedTotal!==undefined?`<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+      <span style="color:var(--mu);">청구서 ${J(rec.billedTotal)}</span>
+      <span style="color:${_dc};font-weight:600;">차이 ${J(_d)}</span>
+      ${_ok?'<span class="badge b-ok">일치</span>':'<span class="badge b-wrn">차이</span>'}
+    </div>`:''}
   </div>`;
 
   document.getElementById('moDetailTable').innerHTML=tbl;
-
-  // 모달 표시
   document.getElementById('moDetailOverlay').style.display='block';
   document.getElementById('moDetailModal').style.display='block';
 }
@@ -2526,7 +2522,7 @@ async function renderSummary(){
           <div style="font-family:'Syne','Segoe UI',Arial,sans-serif;font-size:16px;font-weight:700;color:var(--tx);margin-bottom:2px;">${r.mo}${badge}</div>
           <div style="font-size:11px;color:var(--mu);">${r.confirmedAt}</div>
           <div style="font-size:11px;color:var(--mu);margin-top:1px;">${r.itemCount||'—'}건
-            <span style="color:var(--cyan);font-size:10px;margin-left:4px;">▶ 상세보기</span>
+            <span style="color:var(--cyan);font-size:10px;margin-left:5px;">▶ 상세보기</span>
             <button onclick="event.stopPropagation();deleteSummaryRow('${r.mo}')" style="margin-left:6px;background:none;border:none;color:var(--mu);cursor:pointer;font-size:13px;vertical-align:middle;opacity:.5;" title="삭제">×</button>
           </div>
         </td>`;
@@ -2738,10 +2734,10 @@ async function exportSummaryExcel(mode, targetMo){
         const totIsZero=(tot===0)&&(!isSaesa||r.billedAmt===0);
         let verify;
         if(isSaesa){
-          const _ca=Math.abs(tot), _ba=Math.abs(r.billedAmt);
-          if(_ca===0) verify='미입력';
-          else if(_ba===0) verify='상계처리';
-          else verify=Math.abs(_ca-_ba)<1?'일치':'차이';
+          const _ca2=Math.abs(tot),_ba2=Math.abs(r.billedAmt);
+          if(_ca2===0) verify='미입력';
+          else if(_ba2===0) verify='상계처리';
+          else verify=Math.abs(_ca2-_ba2)<1?'일치':'차이';
         } else {
           verify=totIsZero?'미입력':r.billedAmt===0?'산출완료':Math.abs(diff)<1?'일치':diff<0?'초과청구':'과소청구';
         }
