@@ -2196,12 +2196,19 @@ async function confirmMonth(){
     // 수기 항목
     manualItems:JSON.parse(JSON.stringify(manualItems)),
   };
+  // 항목별 상세 저장 (모달 표시용)
+  const savedItems=rows.map(r=>({
+    cat:r.cat, svc:r.svc, unit:r.unit||'',
+    mssaCalc:Math.round(r.mssaCalc), mfsCalc:Math.round(r.mfsCalc),
+    billedAmt:r.billedAmt||0, method:r.method||'', isSaesa:!!r.isSaesa,
+  }));
   const record={
     mo,
     confirmedAt:new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
     mssa:Math.round(totalM), mfs:Math.round(totalF), total:Math.round(totalM+totalF),
     billedTotal, diff, cats:catTotal, catMssa, catMfs, itemCount:rows.length,
-    inputSnapshot,  // 입력값 스냅샷 저장
+    items:savedItems,   // 항목별 상세 (모달 표시용)
+    inputSnapshot,
   };
   const data=await loadSummaryData();
   data[mo]=record;
@@ -2310,59 +2317,85 @@ async function openMoDetail(mo){
     </div>`).join('');
   document.getElementById('moDetailKpi').innerHTML=kpiHtml;
 
-  // 항목별 상세 테이블
-  const cats=['보관','입고','출고','배송','기타'];
-  const catCols={'보관':'#2de8d0','입고':'#c8f135','출고':'#f43f8e','배송':'#fbbf24','기타':'#a855f7'};
+  // 항목별 상세 테이블 — 배분/계산 탭의 모든 항목 표시
+  const catCols2={'보관':'#2de8d0','입고':'#c8f135','출고':'#f43f8e','배송':'#fbbf24','기타':'#a855f7'};
+  const METHOD_LABEL={'stock':'재고','order':'수주','outQty':'출고수','actual':'실적','atcost':'At Cost'};
 
   let tbl=`<div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead>
-        <tr style="border-bottom:1px solid var(--bd2);">
+        <tr style="border-bottom:2px solid var(--bd2);">
           <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">카테고리</th>
+          <th style="text-align:left;padding:8px 10px;color:var(--mu);font-weight:500;">항목</th>
+          <th style="text-align:center;padding:8px 6px;color:var(--mu);font-weight:500;">방식</th>
           <th style="text-align:right;padding:8px 10px;color:var(--cyan);font-weight:500;">MSSA (¥)</th>
           <th style="text-align:right;padding:8px 10px;color:var(--vio);font-weight:500;">MFS (¥)</th>
           <th style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:500;">합계 (¥)</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--mu);font-weight:500;">청구서 (¥)</th>
         </tr>
       </thead>
       <tbody>`;
 
-  cats.forEach(c=>{
-    const m=rec.catMssa?Math.round(rec.catMssa[c]||0):0;
-    const f=rec.catMfs?Math.round(rec.catMfs[c]||0):0;
-    const tot=m+f;
-    if(m===0&&f===0) return;
-    tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.03)'" onmouseout="this.style.background=''">
-      <td style="padding:9px 10px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catCols[c]};margin-right:7px;"></span><span style="font-weight:500;color:var(--tx);">${c}</span></td>
-      <td style="text-align:right;padding:9px 10px;color:var(--cyan);">${m?J(m):'—'}</td>
-      <td style="text-align:right;padding:9px 10px;color:var(--vio);">${f?J(f):'—'}</td>
-      <td style="text-align:right;padding:9px 10px;font-weight:600;color:var(--lime);">${tot?J(tot):'—'}</td>
-    </tr>`;
-  });
+  if(rec.items && rec.items.length){
+    // 카테고리별로 그룹핑
+    const cats2=['보관','입고','출고','배송','기타'];
+    cats2.forEach(c=>{
+      const cItems=rec.items.filter(it=>it.cat===c);
+      if(!cItems.length) return;
+      cItems.forEach((it,idx)=>{
+        const tot=(it.mssaCalc||0)+(it.mfsCalc||0);
+        const isSaesa=!!it.isSaesa;
+        const totColor=tot<0?'var(--red)':tot>0?'var(--lime)':'var(--mu)';
+        const mCol=it.mssaCalc<0?'var(--red)':'var(--cyan)';
+        const fCol=it.mfsCalc<0?'var(--red)':'var(--vio)';
+        tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s;" onmouseover="this.style.background='rgba(255,255,255,.03)'" onmouseout="this.style.background=''">
+          <td style="padding:8px 10px;">${idx===0?`<span style="display:inline-flex;align-items:center;gap:5px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]}"></span><span style="font-weight:600;color:var(--tx);font-size:11px;">${c}</span></span>`:'&nbsp;'}</td>
+          <td style="padding:8px 10px;color:${isSaesa?'var(--amb)':'var(--tx)'};font-weight:${isSaesa?600:400};max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${it.svc}">${it.svc}</td>
+          <td style="text-align:center;padding:8px 6px;"><span style="font-size:10px;color:var(--mu);background:var(--sf2);padding:2px 5px;border-radius:4px;">${METHOD_LABEL[it.method]||it.method||'—'}</span></td>
+          <td style="text-align:right;padding:8px 10px;color:${mCol};">${it.mssaCalc!==0?J(it.mssaCalc):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;color:${fCol};">${it.mfsCalc!==0?J(it.mfsCalc):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;font-weight:600;color:${totColor};">${tot!==0?J(tot):'—'}</td>
+          <td style="text-align:right;padding:8px 10px;color:${it.billedAmt<0?'var(--red)':'var(--mu)'}">${it.billedAmt!==0?J(it.billedAmt):'—'}</td>
+        </tr>`;
+      });
+    });
+  } else {
+    // items 없는 구버전 데이터 → 카테고리 합계로 폴백
+    const cats3=['보관','입고','출고','배송','기타'];
+    cats3.forEach(c=>{
+      const m=rec.catMssa?Math.round(rec.catMssa[c]||0):0;
+      const f=rec.catMfs?Math.round(rec.catMfs[c]||0):0;
+      if(m===0&&f===0) return;
+      tbl+=`<tr style="border-bottom:1px solid rgba(255,255,255,.04);">
+        <td style="padding:8px 10px;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${catCols2[c]};margin-right:6px;"></span><span style="color:var(--tx);font-weight:500;">${c}</span></td>
+        <td colspan="2" style="padding:8px 10px;color:var(--mu);font-size:11px;">카테고리 합계</td>
+        <td style="text-align:right;padding:8px 10px;color:var(--cyan);">${m?J(m):'—'}</td>
+        <td style="text-align:right;padding:8px 10px;color:var(--vio);">${f?J(f):'—'}</td>
+        <td style="text-align:right;padding:8px 10px;color:var(--lime);font-weight:600;">${J(m+f)}</td>
+        <td style="text-align:right;padding:8px 10px;color:var(--mu);">—</td>
+      </tr>`;
+    });
+  }
 
   // 합계 행
-  tbl+=`<tr style="border-top:1px solid var(--bd2);background:rgba(255,255,255,.02);">
-    <td style="padding:10px 10px;font-weight:700;color:var(--tx);">합계</td>
+  tbl+=`<tr style="border-top:2px solid var(--bd2);background:rgba(255,255,255,.02);">
+    <td colspan="3" style="padding:10px 10px;font-weight:700;color:var(--tx);">합계</td>
     <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--cyan);">${J(rec.mssa)}</td>
     <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--vio);">${J(rec.mfs)}</td>
     <td style="text-align:right;padding:10px 10px;font-weight:700;color:var(--lime);">${J(rec.total)}</td>
+    <td style="text-align:right;padding:10px 10px;color:var(--mu);">${rec.billedTotal?J(rec.billedTotal):'—'}</td>
   </tr>`;
 
-  // 청구서 비교
+  // 차이/검증 행
   if(rec.billedTotal!==undefined){
-    const diff=rec.diff||0;
-    const ok=Math.abs(diff)<1;
-    const dCol=ok?'var(--grn)':diff<0?'var(--red)':'var(--amb)';
+    const _diff=rec.diff||0;
+    const _ok=Math.abs(_diff)<1;
+    const _dCol=_ok?'var(--grn)':_diff<0?'var(--red)':'var(--amb)';
     tbl+=`<tr style="border-top:1px solid var(--bd2);">
-      <td style="padding:10px 10px;color:var(--mu);">청구서 합계</td>
-      <td colspan="2" style="padding:10px 10px;color:var(--mu);"></td>
-      <td style="text-align:right;padding:10px 10px;color:var(--mu);">${J(rec.billedTotal)}</td>
-    </tr>
-    <tr>
-      <td style="padding:8px 10px;color:var(--mu);">차이</td>
-      <td colspan="2" style="padding:8px 10px;"></td>
-      <td style="text-align:right;padding:8px 10px;">
-        <span style="color:${dCol};font-weight:600;">${J(diff)}</span>
-        ${ok?'<span class="badge b-ok" style="margin-left:6px;">일치</span>':'<span class="badge b-wrn" style="margin-left:6px;">차이</span>'}
+      <td colspan="5" style="padding:9px 10px;color:var(--mu);font-size:11px;">청구서 대비 차이</td>
+      <td colspan="2" style="text-align:right;padding:9px 10px;">
+        <span style="color:${_dCol};font-weight:600;margin-right:6px;">${J(_diff)}</span>
+        ${_ok?'<span class="badge b-ok">일치</span>':'<span class="badge b-wrn">차이</span>'}
       </td>
     </tr>`;
   }
