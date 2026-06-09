@@ -2713,54 +2713,130 @@ async function exportSummaryExcel(mode, targetMo){
   ws2['!cols']=[{wch:10},{wch:8},{wch:16},{wch:16},{wch:16}];
   XLSX.utils.book_append_sheet(wb, ws2, mode==='month'?`${targetMo}_구분별`:'구분별 상세');
 
-  /* ── Sheet 3: 현재 로드된 청구서 상세 (전체 모드에서는 조건부) ── */
+  /* ── Sheet 3: 청구서 상세 — 저장된 items 우선, 없으면 현재 computeAll() ── */
   try{
-    const {rows:calcRows}=computeAll();
-    const currentMo=getCurrentMonthKey()||'전체';
-    const shouldAdd=mode==='month'?currentMo===targetMo:true;
-    if(calcRows.length>0&&shouldAdd){
+    const METHOD_LABEL_XL={'stock':'재고','order':'수주','orderB2c':'수주(B2C)','orderB2b':'수주(B2B)',
+      'orderB2cB2b':'수주(B2C+B2B)','outQty':'출고수량','return':'반품','actual':'실적','atcost':'At Cost'};
+
+    // 각 월별로 청구상세 시트 생성
+    for(const rec of records){
+      const moKey=rec.mo;
+      let itemSrc=null;
+
+      // 우선순위 1: 확정 시 저장된 items (가장 정확)
+      if(rec.items && rec.items.length>0){
+        itemSrc=rec.items;
+      }
+      // 우선순위 2: 현재 ALL에서 해당 월 데이터 + actualQtySnap으로 재계산
+      else {
+        const moData=(ALL||[]).filter(i=>i.mo===moKey);
+        if(moData.length>0){
+          const snap=rec.actualQtySnap||actualQty||{};
+          const rSnap=rec.ratiosSnap||getRatios();
+          const R2=v=>Math.round(v);
+          const seen2=new Set();
+          const calcRows2=[];
+          moData.forEach(it=>{
+            if(seen2.has(it.svc)) return; seen2.add(it.svc);
+            const method2=findSettle(it.svc)||'actual';
+            const isSaesa2=it.svc==='相殺'||it.svc.includes('相殺')||it.svc.includes('상계');
+            const aqKey2=isSaesa2?'相殺':it.svc;
+            const aq2=snap[aqKey2]||{mssaQty:0,mfsQty:0,mssaAmt:0,mfsAmt:0};
+            const billedAmt2=isSaesa2?it.amt:Math.abs(it.amt);
+            let mssaCalc2=0, mfsCalc2=0;
+            if(method2==='stock'){mssaCalc2=R2(billedAmt2*rSnap.stock.m);mfsCalc2=R2(billedAmt2*rSnap.stock.f);}
+            else if(method2==='orderB2c'){mssaCalc2=R2(billedAmt2*rSnap.orderB2c.m);mfsCalc2=R2(billedAmt2*rSnap.orderB2c.f);}
+            else if(method2==='orderB2b'){mssaCalc2=R2(billedAmt2*rSnap.orderB2b.m);mfsCalc2=R2(billedAmt2*rSnap.orderB2b.f);}
+            else if(method2==='orderB2cB2b'){mssaCalc2=R2(billedAmt2*rSnap.orderB2cB2b.m);mfsCalc2=R2(billedAmt2*rSnap.orderB2cB2b.f);}
+            else if(method2==='return'){mssaCalc2=R2(billedAmt2*rSnap.return.m);mfsCalc2=R2(billedAmt2*rSnap.return.f);}
+            else{
+              if(isSaesa2){
+                if(aq2.mssaAmt!==0||aq2.mfsAmt!==0){mssaCalc2=-(Math.abs(aq2.mssaAmt));mfsCalc2=-(Math.abs(aq2.mfsAmt));}
+                else{mssaCalc2=billedAmt2;mfsCalc2=0;}
+              } else if(method2==='atcost'){mssaCalc2=aq2.mssaAmt||0;mfsCalc2=aq2.mfsAmt||0;}
+              else{const cr2=it.contractRate||it.cr||it.rate||0;mssaCalc2=R2(cr2*aq2.mssaQty);mfsCalc2=R2(cr2*aq2.mfsQty);}
+            }
+            let mssaQ='',mfsQ='';
+            if(method2==='actual'&&!isSaesa2){mssaQ=aq2.mssaQty||'';mfsQ=aq2.mfsQty||'';}
+            calcRows2.push({
+              cat:it.cat, svc:it.svc, unit:it.unit||'',
+              contractRate:it.contractRate||it.rate||0, method:method2,
+              mssaQtyVal:mssaQ, mfsQtyVal:mfsQ,
+              mssaCalc:mssaCalc2, mfsCalc:mfsCalc2,
+              billedAmt:billedAmt2, isSaesa:isSaesa2
+            });
+          });
+          if(calcRows2.length>0) itemSrc=calcRows2.map(r=>({...r,
+            mssaCalc:r.mssaCalc, mfsCalc:r.mfsCalc,
+            billedAmt:r.billedAmt, isSaesa:r.isSaesa,
+            _mssaQtyVal:r.mssaQtyVal, _mfsQtyVal:r.mfsQtyVal}));
+        }
+      }
+
+      // 우선순위 3: ALL도 없고 items도 없음 → 카테고리 합계로 폴백 (구버전 데이터 구제)
+      if(!itemSrc||!itemSrc.length){
+        const cats3=['보관','입고','출고','배송','기타'];
+        const fallbackRows=[];
+        cats3.forEach(c=>{
+          const cm3=rec.catMssa?Math.round(rec.catMssa[c]||0):0;
+          const cf3=rec.catMfs?Math.round(rec.catMfs[c]||0):0;
+          const ct3=rec.cats?Math.round(rec.cats[c]||0):(cm3+cf3);
+          if(cm3||cf3||ct3){
+            fallbackRows.push({
+              cat:c, svc:'(카테고리 합계)', unit:'', contractRate:'', method:'',
+              mssaQtyVal:'', mfsQtyVal:'',
+              mssaCalc:cm3, mfsCalc:cf3, billedAmt:ct3, isSaesa:false,
+              _mssaQtyVal:'', _mfsQtyVal:''
+            });
+          }
+        });
+        if(fallbackRows.length) itemSrc=fallbackRows;
+        else continue;
+      }
+
       const s3rows=[
         ['구분','항목','단위','계약단가 (¥)','정산방식',
          'MSSA 수량','MFS 수량',
          'MSSA 금액 (¥)','MFS 금액 (¥)','합계 금액 (¥)',
          '청구서 금액 (¥)','차이 (¥)','검증'],
       ];
-      const r2=getRatios();
       let totM=0,totF=0,totCalc=0,totBilled=0;
-      calcRows.forEach(r=>{
-        const tot=r.mssaCalc+r.mfsCalc;
-        const diff=tot-r.billedAmt;
-        const isSaesa=!!r.isSaesa;
-        const totIsZero=(tot===0)&&(!isSaesa||r.billedAmt===0);
-        let verify;
-        if(isSaesa){
-          const _ca2=Math.abs(tot),_ba2=Math.abs(r.billedAmt);
-          if(_ca2===0) verify='미입력';
-          else if(_ba2===0) verify='상계처리';
-          else verify=Math.abs(_ca2-_ba2)<1?'일치':'차이';
+      itemSrc.forEach(r=>{
+        const mssaC=r.mssaCalc||0, mfsC=r.mfsCalc||0;
+        const tot2=mssaC+mfsC;
+        const billed2=r.billedAmt||0;
+        const diff2=tot2-billed2;
+        const isSaesa3=!!r.isSaesa;
+        let verify2;
+        if(isSaesa3){
+          const _ca=Math.abs(tot2),_ba=Math.abs(billed2);
+          if(_ca===0) verify2='미입력';
+          else if(_ba===0) verify2='상계처리';
+          else verify2=Math.abs(_ca-_ba)<1?'일치':'차이';
         } else {
-          verify=totIsZero?'미입력':r.billedAmt===0?'산출완료':Math.abs(diff)<1?'일치':diff<0?'초과청구':'과소청구';
+          const totIsZero2=(tot2===0);
+          verify2=totIsZero2?'미입력':billed2===0?'산출완료':Math.abs(diff2)<1?'일치':diff2<0?'초과청구':'과소청구';
         }
-        const methodLabel=METHOD_LABEL[r.method]||r.method||'';
-        const aq=actualQty[r.svc]||{mssaQty:0,mfsQty:0};
-        let mssaQtyVal='', mfsQtyVal='';
-        if(r.method==='actual'&&!isSaesa){ mssaQtyVal=aq.mssaQty||''; mfsQtyVal=aq.mfsQty||''; }
-        else if(r.method==='outQty'){ mssaQtyVal=r2.outQty.m||''; mfsQtyVal=r2.outQty.f||''; }
+        const mLabel=METHOD_LABEL_XL[r.method]||r.method||'';
+        const mssaQtyDisp=r._mssaQtyVal!==undefined?r._mssaQtyVal:(r.mssaQtyVal||'');
+        const mfsQtyDisp=r._mfsQtyVal!==undefined?r._mfsQtyVal:(r.mfsQtyVal||'');
         s3rows.push([
           r.cat, r.svc, r.unit||'',
-          r.contractRate||r.rate||0, methodLabel,
-          mssaQtyVal, mfsQtyVal,
-          r.mssaCalc, r.mfsCalc, tot,
-          r.billedAmt||0, diff, verify,
+          r.contractRate||r.rate||0, mLabel,
+          mssaQtyDisp, mfsQtyDisp,
+          mssaC, mfsC, tot2,
+          billed2, diff2, verify2,
         ]);
-        totM+=r.mssaCalc; totF+=r.mfsCalc;
-        totCalc+=tot; totBilled+=r.billedAmt||0;
+        totM+=mssaC; totF+=mfsC;
+        totCalc+=tot2; totBilled+=billed2;
       });
       s3rows.push([]);
       s3rows.push(['합계','','','','','','',totM,totF,totCalc,totBilled,totCalc-totBilled,'']);
       const ws3=XLSX.utils.aoa_to_sheet(s3rows);
       ws3['!cols']=[{wch:8},{wch:30},{wch:8},{wch:12},{wch:16},{wch:10},{wch:10},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:10}];
-      XLSX.utils.book_append_sheet(wb, ws3, `청구상세_${currentMo}`);
+      // 시트명 길이 제한(31자) 적용
+      const sheetNameBase=`청구상세_${moKey}`;
+      XLSX.utils.book_append_sheet(wb, ws3, sheetNameBase.slice(0,31));
     }
   }catch(e){ console.warn('청구상세 시트 생성 실패',e); }
 
