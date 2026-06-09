@@ -1522,7 +1522,7 @@ const SETTLE_METHOD={
   '피킹작업_Pcs':'outQty',
   '출고포장/검품_B2C':'orderB2c',
   '출고포장/검품_B2B':'orderB2b',
-  '반품작업':'return',
+  '반품작업':'returnInv',
   '포장자재':'orderB2c',
   '재고검수':'stock',
   'BOX라벨 출력 및 부착 비용':'actual','송장 라벨 추가 출력 및 부착':'actual',
@@ -1538,7 +1538,7 @@ const SETTLE_METHOD={
 const METHOD_LABEL={
   stock:'재고비율',orderB2c:'출고송장(B2C)',orderB2b:'출고송장(B2B)',
   orderB2cB2b:'출고송장(B2C+B2B)',
-  outQty:'출고수량',return:'반품송장비율',actual:'Actual',atcost:'at cost'
+  outQty:'출고수량',return:'반품송장비율',returnInv:'반품송장수',actual:'Actual',atcost:'at cost'
 };
 const METHOD_BADGE={
   stock:`<span class="badge b-cat">재고비율</span>`,
@@ -1546,7 +1546,8 @@ const METHOD_BADGE={
   orderB2b:`<span class="badge" style="background:rgba(200,241,53,.1);color:#a3c520">출고송장B2B</span>`,
   orderB2cB2b:`<span class="badge" style="background:rgba(200,241,53,.18);color:#c8f135;font-weight:600">출고송장B2C+B2B</span>`,
   outQty:`<span class="badge" style="background:rgba(244,63,142,.15);color:#f43f8e">출고수량</span>`,
-  return:`<span class="badge b-mfs">반품송장</span>`,
+  return:`<span class="badge b-mfs">반품송장비율</span>`,
+  returnInv:`<span class="badge b-mfs">반품송장수</span>`,
   actual:`<span class="badge b-ok">Actual</span>`,
   atcost:`<span class="badge b-gray">at cost (금액 직접입력)</span>`,
 };
@@ -1578,6 +1579,7 @@ function getRatios(){
     orderB2cB2b:{m:(b2cm+b2bm)/b2cbt,f:(b2cf+b2bf)/b2cbt},
     outQty:{m:oqm,f:oqf,mssaB2C:oqmB2C,mssaB2B:oqmB2B,rate:oqm/oqt,ratef:oqf/oqt},
     return:{m:rm/rt,f:rf/rt},
+    returnInv:{m:rm,f:rf},
   };
 }
 
@@ -1828,6 +1830,10 @@ function computeAll(){
     } else if(method==='return'){
       mssaAmt=R(billedAmt*r.return.m);
       mfsAmt=R(billedAmt*r.return.f);
+    } else if(method==='returnInv'){
+      const cRate=it.contractRate||it.cr||it.rate||0;
+      mssaAmt=R(cRate*r.returnInv.m);
+      mfsAmt=R(cRate*r.returnInv.f);
     } else { // actual / atcost
       const cRate=it.contractRate||it.cr||it.rate||0;
       if(isSaesa){
@@ -1896,6 +1902,8 @@ function computeAll(){
         m=R(billedAmt*r.orderB2cB2b.m); f=R(billedAmt*r.orderB2cB2b.f);
       } else if(method==='return'){
         m=R(billedAmt*r.return.m); f=R(billedAmt*r.return.f);
+      } else if(method==='returnInv'){
+        m=R(cv.rate*r.returnInv.m); f=R(cv.rate*r.returnInv.f);
       } else if(method==='actual'){
         if(isSaesa){
           m=aq.mssaAmt!==undefined?-(Math.abs(aq.mssaAmt)):0;
@@ -2300,6 +2308,7 @@ async function openMoDetail(mo){
           mssaAmt=R2(rSnap.outQty.m*PICK_RATE);mfsAmt=R2(rSnap.outQty.f*PICK_RATE);
         }
         else if(method==='return'){mssaAmt=R2(billedAmt*rSnap.return.m);mfsAmt=R2(billedAmt*rSnap.return.f);}
+        else if(method==='returnInv'){const cr=it.contractRate||it.cr||it.rate||0;mssaAmt=R2(cr*(rSnap.returnInv?rSnap.returnInv.m:0));mfsAmt=R2(cr*(rSnap.returnInv?rSnap.returnInv.f:0));}
         else{
           // actual / atcost
           if(isSaesa){
@@ -2459,7 +2468,7 @@ async function updateConfirmUI(){
   if(!btnC) return;
   if(rec){
     btnC.style.display='none'; btnE.style.display='';
-    if(status) status.innerHTML=`<span style="color:var(--grn);font-weight:500">✅ ${rec.mo} 확정됨</span><span style="color:var(--mu);font-size:11px;margin-left:6px">${rec.confirmedAt}</span>`;
+    if(status) status.innerHTML=`<span style="color:var(--grn);font-weight:500">✅ ${rec.mo} 확정됨</span><span style="color:var(--mu);font-size:11px;margin-left:6px">${rec.confirmedAt}</span>&nbsp;<button onclick="openMoDetail('${rec.mo}')" style="background:rgba(45,232,208,.12);border:1px solid rgba(45,232,208,.25);color:var(--cyan);border-radius:6px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit;">상세 보기</button>`;
   } else {
     btnC.style.display=''; btnE.style.display='none';
     if(status) status.textContent='';
@@ -2749,6 +2758,7 @@ async function exportSummaryExcel(mode, targetMo){
             else if(method2==='orderB2b'){mssaCalc2=R2(billedAmt2*rSnap.orderB2b.m);mfsCalc2=R2(billedAmt2*rSnap.orderB2b.f);}
             else if(method2==='orderB2cB2b'){mssaCalc2=R2(billedAmt2*rSnap.orderB2cB2b.m);mfsCalc2=R2(billedAmt2*rSnap.orderB2cB2b.f);}
             else if(method2==='return'){mssaCalc2=R2(billedAmt2*rSnap.return.m);mfsCalc2=R2(billedAmt2*rSnap.return.f);}
+            else if(method2==='returnInv'){const cr2=it2.contractRate||it2.cr||it2.rate||0;mssaCalc2=R2(cr2*(rSnap.returnInv?rSnap.returnInv.m:0));mfsCalc2=R2(cr2*(rSnap.returnInv?rSnap.returnInv.f:0));}
             else{
               if(isSaesa2){
                 if(aq2.mssaAmt!==0||aq2.mfsAmt!==0){mssaCalc2=-(Math.abs(aq2.mssaAmt));mfsCalc2=-(Math.abs(aq2.mfsAmt));}
